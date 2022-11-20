@@ -1,0 +1,371 @@
+---
+title: "Group A 3 Project Report"
+author: "Akshath, Aswath(aswma317), Varun"
+date: "2022-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(kknn)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+## Assignment 1: Handwritten digit recognition with K-nearest neighbors
+
+### subquestion 1
+
+Please see the code in appendix
+```{r,eval=TRUE,echo=FALSE}
+
+##############Code for KNN##############
+#loading data
+opt<-read.csv('optdigits.csv',header=FALSE)
+
+#splitting test, train and validation datasets
+n=dim(opt)[1]
+set.seed(12345)
+id<- sample(1:n,floor(n*0.5))
+train<-opt[id,]
+
+id1<-setdiff(1:n,id)
+set.seed(12345)
+id2<-sample(id1,floor(n*0.25))
+valid<-opt[id2,]
+
+id3<-setdiff(id1,id2)
+test<-opt[id3,]
+```
+
+### subquestion 2
+
+As we can see the confusion matrices for both test data and train data predictions in which rows are actual values and columns are predicted values. Diagonal values shows the correct predictions. Most incorrect predictions for test and train data is digit 9 and most correct prediction is zero. 
+We can also see the misclassification error for train and test data below. Test data error(5.3%) is slightly higher than the training error(4.5). From this two factors we can draw the conclusion that overall prediction quality is pretty good.
+
+```{r,eval=TRUE,echo=FALSE}
+m_test<-kknn::kknn(as.factor(V65)~., train,test, k=30,kernel="rectangular")
+pred_test<-m_test$fitted.values
+
+m_train<-kknn(as.factor(V65)~., train,train, k=30,kernel="rectangular")
+pred_train<-m_train$fitted.values
+
+# confusion matrices for train and test data
+table(test$V65,pred_test)
+table(train$V65,pred_train)
+
+
+#missclassification error for train and test data
+missclass<-function(X,X1){
+  n=length(X)
+  return(1-sum(diag(table(X,X1)))/n)
+}
+cat("Misclassification error on test data :", missclass(test$V65,pred_test),"\n")
+cat("Misclassification error on train data :", missclass(train$V65,pred_train),"\n")
+```
+
+### subquestion 3
+
+The heatmap for the easiest and hard cases to predict 8 where 8 is the correct class are shown below. Firt two cases are easiest to classify which we can see from the graph that looks exactly like 8. Next three cases are hardest to classify which has probabilities(0.1,0.13,0.16) very low. the heatmap looks nowhere near the digit 8. Two of the hard cases looks like 1 visually and one looks like alphabet c.
+
+```{r,eval=TRUE,echo=FALSE,results='hide'}
+#getting probability of prediction of train data
+prob<-m_train$prob
+colnames(prob)<-c('level_0','level_1','level_2','level_3','level_4','level_5'
+                  ,'level_6','level_7','level_8','level_9')
+
+#copying train data set
+get_prob<-train
+
+#adding predicted column to the data set
+get_prob$predicted<-pred_train
+
+#adding digit 8 probability form prob matrix to data frame
+get_prob$prob<-prob[,9]
+
+#filtering and ordering based on correct class 8
+fil<-dplyr::filter(get_prob,get_prob$V65==8)
+fil<-fil[order(fil$prob),]
+
+#easy case 1
+new_df_ez_1 <- fil[nrow(fil)-2,]
+as.list.data.frame(new_df_ez_1)
+new_df_ez_long <- matrix(as.numeric(new_df_ez_1[,c(1:64)]), ncol = 8, byrow = TRUE)
+
+#easy case 2
+new_df_ez_2 <- fil[nrow(fil)-1,]
+as.list.data.frame(new_df_ez_2)
+new_df_ez_long_2 <- matrix(as.numeric(new_df_ez_2[,c(1:64)]), ncol = 8, byrow = TRUE)
+
+#hard case 3
+new_df_hard_1 <- fil[1,]
+as.list.data.frame(new_df_hard_1)
+new_df_hard_long_1 <- matrix(as.numeric(new_df_hard_1[,c(1:64)]), ncol = 8, byrow = TRUE)
+
+#hard case 2
+new_df_hard_2 <- fil[2,]
+as.list.data.frame(new_df_hard_2)
+new_df_hard_long_2 <- matrix(as.numeric(new_df_hard_2[,c(1:64)]), ncol = 8, byrow = TRUE)
+
+#hard case 3
+new_df_hard_3 <- fil[3,]
+as.list.data.frame(new_df_hard_3)
+new_df_hard_long_3 <- matrix(as.numeric(new_df_hard_3[,c(1:64)]), ncol = 8, byrow = TRUE)
+
+```
+
+```{r,eval=TRUE,echo=FALSE,figures-side,fig.show='hold',out.width='33%'}
+#easy cases heat map
+heatmap(x = new_df_ez_long, Rowv = NA, Colv = NA)
+heatmap(x = new_df_ez_long_2, Rowv = NA, Colv = NA)
+
+```
+
+```{r,eval=TRUE,echo=FALSE,figures-side1,fig.show='hold',out.width='33%'}
+#hard cases heatmap
+heatmap(x = new_df_hard_long_1, Rowv = NA, Colv = NA)
+heatmap(x = new_df_hard_long_2, Rowv = NA, Colv = NA)
+heatmap(x = new_df_hard_long_3, Rowv = NA, Colv = NA)
+```
+
+### subquestion 4
+
+For KNN model complexity is high when k is less which we mean the ability of a method to adapt to patterns in the training data and the complexity reduces as the K is increased.From the plot, we can observe that for very less K the generalisation gap is large but training error is less, as K increases we find the optimal area where validation error(E new) and generalisation gap are less . Further more, if we increase K beyond 7 the **miscalssification error** on training and validation data increases and also the generalisation gap increases.To conclude, KNN model complexity is high when K is less.
+
+The optimal K is 4 as the validation error (E new) is less and also the generalisation gap is small.
+
+```{r,eval=TRUE,echo=FALSE}
+
+#calculating missclasification error for training and valid data and plotting 
+#in same plot to find optimal K
+k<-1:30
+misclasserror<-c()
+misclasserror_train<-c()
+  for(i in 1:length(k)){
+    m_valid<-kknn(as.factor(V65)~., train,valid, k=i,kernel="rectangular")
+    pred_valid<-m_valid$fitted.values
+    m_train_1<-kknn(as.factor(V65)~., train,train, k=i,kernel="rectangular")
+    pred_train<-m_train_1$fitted.values
+    n1=length(valid$V65)
+    v1<-(1-sum(diag(table(valid$V65,pred_valid)))/n1)
+    misclasserror<-c(misclasserror,v1)
+    n2=length(train$V65)
+    v2<-(1-sum(diag(table(train$V65,pred_train)))/n2)
+    misclasserror_train<-c(misclasserror_train,v2)
+}
+plot(k,misclasserror,type='l',ylim=c(0,0.06))
+lines(k,misclasserror_train,type='l',col='blue')
+```
+
+After predicting the digits using the optimal K we got above we can see from the table the predictions on test data improved when compared to the predictions in subquestion 2. The incorrect predictions of 9 is reduced and also we can observe that misclassification error is reduced to 2.5% from 5.3%. The model quality is improved a lot as the misclassification error was reduced by 50%.
+
+```{r,eval=TRUE,echo=FALSE}
+
+#after getting optimal K predicting on test data
+m_optim<-kknn(as.factor(V65)~., train,test, k=4,kernel="rectangular")
+optim_pred<-m_optim$fitted.values
+table(test$V65,optim_pred)
+cat("Misclassification error on test data for optimal K :", missclass(test$V65,optim_pred),"\n")
+
+```
+
+### subquestion 5
+
+There are two reasons why misclassification error is not suitable. First, using a different loss function can result in a model that generalizes better from the training data. The second reason for not using misclassification loss as the training objective, which is also important, is that it would result in a cost function that is piece wise constant. From a numerical optimization perspective, this is a difficult objective since the gradient is zero everywhere, except where it is undefined.
+
+Cross entropy loss is better because it is calculated by maximum likelihood estimation in a multinomial distribution. Another reason to use cross entropy is that this results in convex loss function, of which global minimum will be easy to find.
+
+```{r,eval=TRUE,echo=FALSE}
+
+#cross entropy error
+#creating one hot encoding matrix using model.matrix
+y_1 <- model.matrix(~0+as.factor(valid$V65), data = valid)
+k<-1:30
+entropy<-c()
+for(i in 1:length(k)){
+  m_e<-kknn(as.factor(train$V65)~., train,valid, k=i,kernel="rectangular")
+  prob<-m_e$prob
+  log_prb <- log(prob+10^-15)
+  entropy <-c(entropy,-sum(y_1 * log_prb)) 
+}
+plot(k,entropy,type='l')
+```
+
+## Assignment 2: Linear Regression and Ridge Regression
+### Question 2
+a) Estimate the Training Error and Test Error
+```{r,eval=TRUE,echo=FALSE}
+##############Code for Linear regression and ridge regression##############
+set.seed(12345)
+#Read csv
+data <- read.csv(file = 'parkinsons.csv', header = T)
+data <- data %>% 
+  dplyr::select(motor_UPDRS,starts_with("Jitter"),starts_with("Shimmer"),
+                NHR, HNR, RPDE, DFA, PPE)
+#Divide training and test data in 60-40 ratio
+n <- nrow(data)
+train_index <- sample(1:n, size=floor(n*0.6))
+train <- data[train_index,]
+test <- data[-train_index,]
+#Scaling the data
+params <- caret::preProcess(train)
+Stest <- predict(params, test)
+Strain <- predict(params, train)
+
+mod <- lm(formula = motor_UPDRS~-1+., data = Strain)#model without intercept
+test_predict <- predict(mod,newdata = Stest)
+train_predict <- predict(mod,newdata = Strain)
+#MSE - train
+mse_train <- mean((train_predict-Strain$motor_UPDRS)^2) #0.9016564
+cat('Training Error:', mse_train)
+
+#MSE - test
+mse_test <- mean((test_predict-Stest$motor_UPDRS)^2) #0.8996531 - Without intercept
+cat('Test Error: ',mse_test)
+```
+b) Which variables contribute significantly?
+
+The following variables have a p-value less than the significance level of 0.05, hence they can be considered as statistically significant:
+```{r,eval=TRUE,echo=TRUE}
+p_df <- data.frame(p_val = summary(mod)$coefficients[,4]) %>%
+  filter(p_val < 0.05) %>%
+  arrange(p_val)
+print(p_df)
+```
+```{r,eval=TRUE,echo=FALSE}
+Loglikelihood <- function(theta, sigma){
+  n <- nrow(Strain)
+  x <- as.matrix(Strain[,-1])
+  return(-n*log(sigma*sqrt(2*pi))-
+    (1/(2*sigma^2))*sum((Strain$motor_UPDRS-(x%*%(theta)))^2))
+}
+Ridge <- function(x, lambda){
+  theta <- x[1:16]
+  sigma <- x[17]
+  # lambda <- x[18]
+  return(-Loglikelihood(theta,sigma) + (lambda * sum(theta * theta)))
+  # return(-Loglikelihood(theta,sigma))
+}
+
+RidgeOpt <- function(lambdas){
+  # parameter <- c(rep(1,17),lambda)
+  parameter <- c(rep(0,16))
+  parameter <- c(parameter,1)
+  mse_df <- as.data.frame(matrix(nrow = 0, ncol = 4))
+  colnames(mse_df) <- c('lambda', 'data_type', 'mse', 'rsqr')
+  coef_df <- as.data.frame(matrix(nrow=0, ncol=3))
+  colnames(coef_df) <- c('lambda','coef', 'val')
+  for (i in lambdas) {
+    res <- optim(parameter, 
+                 fn=Ridge,
+                 lambda = i, 
+                 method = "BFGS") #Get the optimal theta & sigma 
+    theta <- res$par[1:16]
+    #MSE for training data
+    train_x <- as.matrix(Strain[,-1])
+    train_y_hat <- train_x %*% theta
+    train_mse = mean((Strain$motor_UPDRS-train_y_hat)^2)
+    train_rsq <- cor(Strain$motor_UPDRS, train_y_hat)^2
+    
+    #MSE for training data
+    test_x <- as.matrix(Stest[,-1])
+    test_y_hat <- test_x %*% theta
+    test_mse <- mean((Stest$motor_UPDRS-test_y_hat)^2)
+    test_rsq <- cor(Stest$motor_UPDRS, test_y_hat)^2
+    
+    mse_df <- rbind(mse_df, 
+                    data.frame(lambda = i, 
+                               data_type = 'train',
+                               mse = train_mse,
+                               rsqr = train_rsq
+                    )
+    )
+    mse_df <- rbind(mse_df, 
+                    data.frame(lambda = i, 
+                               data_type = 'test',
+                               mse = test_mse,
+                               rsqr = test_rsq
+                    ))
+    coef_df <- rbind(
+      coef_df,
+      data.frame(lambda = i, coef = 'DFA', val = theta[15]),
+      data.frame(lambda = i, coef = 'PPE', val = theta[16]),
+      data.frame(lambda = i, coef = 'HNR', val = theta[13]),
+      data.frame(lambda = i, coef = 'NHR', val = theta[12]),
+      data.frame(lambda = i, coef = 'Shimmer.APQ11', val = theta[10]),
+      data.frame(lambda = i, coef = 'Jitter.Abs.', val = theta[2]),
+      data.frame(lambda = i, coef = 'Shimmer.APQ5', val = theta[9]),
+      data.frame(lambda = i, coef = 'Shimmer', val = theta[6])
+      )
+  }
+  mse_df <- mse_df %>% arrange(data_type, mse)
+  cat('MSE for Training and Testing data using ridge reg:\n')
+  print(mse_df)
+  return(list(mse_df = mse_df, coef_df = coef_df))
+}
+```
+### Question 4
+a) Use the estimated parameters to predict the motor_UPDRS values for training and test data and report the training and test MSE values.
+```{r,eval=TRUE,echo=FALSE}
+lambdas = c(1, 100, 1000)
+final_list <- RidgeOpt(lambdas)
+```
+b) Which penalty parameter is most appropriate among the selected ones
+```{r,eval=TRUE,echo=TRUE}
+ggplot(final_list$mse_df, aes(x=lambda, y = mse)) +
+  geom_line(aes(color = data_type, linetype = data_type))
+```
+
+As seen above, lambda = 100 gives the least test error and hence is relatively the best.
+
+c) Compute and compare the degrees of freedom of these models and make appropriate conclusions
+```{r,eval=TRUE,echo=FALSE}
+DF <- function(lambdas){
+  #Slide 22 - has the hat matrix for Ridge Regression
+  #To compute the df based on training data
+  x <- as.matrix(Strain[-1])
+  dim(x)
+  degfree_df <- data.frame(matrix(ncol=2, nrow = 0))
+  colnames(degfree_df) <- c('lambda', 'df')
+  for (i in lambdas) {
+    hat_mat <- x %*% solve( t(x)%*%x + i*diag(ncol(x)) ) %*% t(x)
+    degfree_df <- rbind(degfree_df,
+                        data.frame(lambda = i, df = sum(diag(hat_mat)))  
+    )
+  }
+  return(degfree_df)
+}
+df <- DF(lambdas)
+df_final <- final_list$mse_df %>%
+  filter(data_type == 'train') %>%
+  inner_join(x=df, y=., by = 'lambda') %>%
+  gather(.,key = "metric_type",
+         value = "metric_value",
+         -lambda, -df, -data_type) %>%
+  arrange(metric_type, df)
+```
+```{r,eval=TRUE,echo=TRUE}
+ggplot(data = df_final, aes(x = df, y = metric_value)) +
+  geom_line(aes(color = metric_type))
+print(df_final)
+```
+
+As seen as degrees of freedom increases, the MSE decreases, because there are 
+more features to explain. Also, the R2 also increases. But at 9DF, we 
+see the graph stabilizing without much decrease/increase. Hence, this could be 
+a good point to select lambda, which in this case is 100.
+
+### Appendix
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
+
+### Statement of Contribution
+
+Akshath did Assignment 1.
+
+Aswath did Assignment 2.
+
+Varun did Assignment 3.
+
+However, in order to validate our results all members did all 3 and cross-validated the results. But the code and answers provided above are by the individual responsible for the assignment.
